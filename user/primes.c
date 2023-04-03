@@ -16,7 +16,6 @@ void exec_pipe(int fd) {
         break;
       }
       if (tmp % num != 0) {
-        //printf(“%d writing %d and n is: %d\n”, getpid(), tmp, n);
         write(p[1], &tmp, 4);
       }
     }
