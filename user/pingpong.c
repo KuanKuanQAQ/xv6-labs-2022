@@ -6,9 +6,7 @@ int main(int argc, char *argv[]) {
   int p[2];
   char buf[100];
   pipe(p);
-
-  int pid = fork();
-  if (pid == 0) {
+  if (fork() == 0) {
     write(p[1], "ping", 4);
     printf("%d: received ping\n", getpid());
   } else {
