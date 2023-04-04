@@ -3,7 +3,7 @@
 #include "user/user.h"
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
+  if (argc != 2) {
     fprintf(2, "Usage: sleep for a new sec...\n");
     exit(-1);
   }
