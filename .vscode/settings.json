@@ -1,12 +1,7 @@
 {
     "files.associations": {
         "*.c": "c",
-        "istream": "c",
-        "locale": "c",
-        "user.h": "c",
         "__config": "c",
-        "chrono": "c",
-        "stat.h": "c",
-        "__locale": "c"
+        "locale": "c"
     }
 }
