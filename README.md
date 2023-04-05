@@ -371,9 +371,10 @@ uchar initcode[] = {
 };
 ```
 
-这个程序来自 inicode.S，但我找不到这个文件：
+这个程序来自 inicode.S：
 
 ```assembly
+# ==================== user/inicode.S 1 28 ====================
 # Initial process execs /init.
 # This code runs in user space.
 
@@ -406,7 +407,7 @@ argv:
 
 这段代码首先使用 la 将 init 对应的地址加载到 a0 寄存器，然后再用 la 将 argv 对应的地址加载到 a1 寄存器。最后将 SYS_exec 的地址加载到 a7 寄存器。ecall 指令将**权限提升到内核模式并将程序跳转到指定的地址**。
 
-最终让第一个进程重新回到内核态，并使用 exec 系统调用运行 init，无参数。init 如下：
+最终让第一个进程重新回到内核态，并使用 exec 系统调用运行 init 文件，无参数。init 如下：
 
 ```c
 // ==================== user/init.c 14 54 ====================
