@@ -275,11 +275,11 @@ CPU 为强隔离提供硬件支持。 例如RISC-V有三种CPU可以执行指令
 
 ### 2.2.1 xv6 代码结构
 
-![image-20230405220630310](/Users/Kuan/Library/Application Support/typora-user-images/image-20230405220630310.png)
+![fig2.2](./assets/fig2.2.png)
 
 ### 2.2.2 用户虚存空间组织
 
-![image-20230405221027076](/Users/Kuan/Library/Application Support/typora-user-images/image-20230405221027076.png)
+![fgi2.3](./assets/fig2.3.png)
 
 xv6 在 RISC-V 上运行，虚拟地址有 39 位，但只使用 38 位。 因此，最大地址为 2 ^ 38 − 1 = 0x3fffffffff，即 MAXVA (kernel/riscv.h:349)。
 
