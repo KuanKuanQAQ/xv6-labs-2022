@@ -5,9 +5,9 @@ xv6 是 MIT 开发的一个教学用的完整的类 Unix 操作系统，并且�
 
 操作系统有三项任务：
 
-1. 将计算机的资源在多个程序间共享。
-2. 管理并抽象底层硬件，举例来说，一个文字处理软件（比如 word）不用去关心自己使用的是何种硬盘。
-3. 提供一种受控的交互方式，使得程序之间可以共享数据、共同工作。
+1. 多路复用（分时复用）：将计算机的资源在多个程序间共享。
+2. 隔离：管理并抽象底层硬件，举例来说，一个文字处理软件（比如 word）不用去关心自己使用的是何种硬盘。
+3. 交互：提供一种受控的交互方式，使得程序之间可以共享数据、共同工作。
 
 操作系统完成这三项任务的方法是为用户程序提供服务，而用户程序可以通过操作系统接口来调用这些服务。
 
@@ -250,62 +250,56 @@ fstat(fd, &st) 可以获得一个文件描述符 fd 指向的文件的信息，�
 
 并将这个结构体赋值给 st。
 
-# 第 2 章 OS 组织
+# 第 2 章 操作系统组织
 
-操作系统必须安排进程之间的隔离。 如果一个进程有错误并失败了，它不应该影响其他不依赖于失败进程的进程。
+## 2.1 xv6 结构
 
-操作系统必须满足三个要求：多路复用、隔离和交互。
+### 2.1.1 xv6 的代码结构
 
-## 2.1 抽象物理资源
-
-### 2.1.1 CPU 支持的三种模式
-CPU 为强隔离提供硬件支持。 例如RISC-V有三种CPU可以执行指令的模式：机器模式、管理模式和用户模式。
-在机器模式下执行的指令具有完全特权； CPU 以机器模式启动。 机器模式主要用于配置计算机。
-
-在管理员模式下，CPU 可以执行特权指令：例如，启用和禁用中断、读取和写入保存页表地址的寄存器等。
-
-应用程序只能执行用户模式指令。
-
-### 2.1.2 应用程序想要调用内核函数（系统调用）
-
-想要调用内核函数（例如 xv6 中的读取系统调用）的应用程序必须转换到内核。 CPU 提供了一条特殊的指令，可以将 CPU 从用户模式切换到管理员模式，并在内核指定的入口点进入内核。 （RISC-V 为此提供了 ecall 指令。）
-出于安全原因，内核控制转换到主管模式的入口点。
-
-## 2.2 xv6 组织
-
-### 2.2.1 xv6 代码结构
+xv6 内核源代码位于 kernel/ 子目录中。 按照模块化的粗略概念，源代码被分成文件； 下表列出了这些文件。 模块间接口在 defs.h (kernel/defs.h) 中定义。
 
 ![fig2.2](./assets/fig2.2.png)
 
-### 2.2.2 用户虚存空间组织
+### 2.1.1 xv6 的虚存结构
 
 ![fgi2.3](./assets/fig2.3.png)
 
-xv6 在 RISC-V 上运行，虚拟地址有 39 位，但只使用 38 位。 因此，最大地址为 2 ^ 38 − 1 = 0x3fffffffff，即 MAXVA (kernel/riscv.h:349)。
+注意，xv6 的用户栈似乎和 linux 不太一样，是紧挨着数据段和代码段的。而 linux 则是放在虚存中用户空间的顶部。但是它们都是从上向下生长的。
 
-每个进程都有一个执行线程（或简称线程）来执行进程的指令。 一个线程可以被挂起并稍后恢复。 为了在进程之间透明地切换，内核挂起当前运行的线程并恢复另一个进程的线程（上下文切换）。
+另外，xv6 运行在 RISC-V 64 位指令集架构处理器上，虚存地址最多可以有 39 位（其他位用于记录各种控制信息），不过 xv6 只使用其中 38 位。也就是说 xv6 的进程虚拟地址空间的大小是 2 ^ 38 - 1，也就是 MAXVA 的值。
 
-## 2.3 xv6 的启动和第一个进程
+```c
+// ==================== kernel/riscv.h 359 363 ====================
+// one beyond the highest possible virtual address.
+// MAXVA is actually one bit less than the max allowed by
+// Sv39, to avoid having to sign-extend virtual addresses
+// that have the high bit set.
+#define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
+```
 
-### 2.3.1 内核启动
+## 2.2 xv6 的启动和第一个进程
 
-当 RISC-V 计算机开机时，它会自行初始化并运行存储在只读存储器中的引导加载程序。 引导加载程序将 xv6 内核加载到内存中。 然后，在机器模式下，CPU 从 _entry (kernel/entry.S:12) 开始执行 xv6。 Xv6 以禁用 RISC-V 分页硬件开始：虚拟地址直接映射到物理地址。
+### 2.2.1 内核启动
+
+当 RISC-V 计算机开机时，它会自行初始化并运行存储在只读存储器中的引导加载程序。 引导加载程序将 xv6 内核加载到内存中。然后，CPU 从 _entry (kernel/entry.S:12) 开始执行 xv6。Xv6 以禁用 RISC-V 分页硬件开始：虚拟地址直接映射到物理地址。
 
 1. 引导加载程序将 xv6 内核加载到物理地址 0x80000000 的内存中，因为地址范围 0x0:0x80000000 包含 I/O 设备。
-2. _entry 处的指令设置了一个堆栈，以便 xv6 可以运行 C 代码。 _entry 处的代码将堆栈指针寄存器 sp 加载到地址 stack0+4096，堆栈的顶部，因为 RISC-V 上的堆栈向下增长。
+2. _entry 处的指令设置了一个栈，以便 xv6 可以运行 C 代码。 _entry 处的代码将栈指针寄存器 sp 加载到地址 stack0+4096，堆栈的顶部，因为 RISC-V 上的栈向下增长。
 3. 现在 xv6 有一个堆栈，并且能够运行 C 代码。
-4. _entry 在开始时调用 C 代码（kernel/start.c:21）。
+4. _entry 在开始时调用 C 代码（kernel/start.c 20）。
 5. 执行一些仅在机器模式下允许的配置。
-6. 将程序计数器设置为 main。
-7. 通过将 satp 设置为 0 来禁用分页。
+6. 将程序计数器设置为 main（kernel/start.c 31）。
+7. 通过将 satp 设置为 0 来禁用分页（kernel/start.c 34）。
 8. 启用时钟中断。
-9. 切换到管理员模式并跳转到 main()。
+9. 切换到管理员模式并跳转到 main() （kernel/start.c 34）。
 
-### 2.3.2 第一个进程
+### 2.2.2 第一个进程
 
 在 main 中，在初始化了几个设备和子系统之后，它通过调用 userinit() 创建了第一个进程。
 
 ```c
+// ==================== kernel/proc.c 231 255 ====================
+// Set up first user process.
 void
 userinit(void)
 {
@@ -313,18 +307,18 @@ userinit(void)
 
   p = allocproc();
   initproc = p;
-
-  // allocate one user page and copy init’s instructions
+  
+  // allocate one user page and copy initcode's instructions
   // and data into it.
-  uvminit(p->pagetable, initcode, sizeof(initcode));
+  uvmfirst(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
-  // prepare for the very first “return” from kernel to user.
-  p->tf->epc = 0;      // user program counter
-  p->tf->sp = PGSIZE;  // user stack pointer
+  // prepare for the very first "return" from kernel to user.
+  p->trapframe->epc = 0;      // user program counter
+  p->trapframe->sp = PGSIZE;  // user stack pointer
 
-  safestrcpy(p->name, “initcode”, sizeof(p->name));
-  p->cwd = namei(“/“);
+  safestrcpy(p->name, "initcode", sizeof(p->name));
+  p->cwd = namei("/");
 
   p->state = RUNNABLE;
 
@@ -332,23 +326,52 @@ userinit(void)
 }
 ```
 
-第一个进程执行一个小程序：initcode。 它是以一段二进制的形式被 uvminit() 直接放到内存中的：
+userinit() 首先用 allocproc() 找到一个空闲的进程表项。所有进程都有一个对应的进程表项，可能是进程控制块，记载了这个进程的状态、进程号、父进程、内核栈的虚存地址、占用内存大小、用户页表、打开文件、当前目录和上下文信息。在找到空闲进程表项之后 allocproc() 会设置进程页表、上下文以及下面这项我看不懂的东西。
 
 ```c
-// a user program that calls exec(“/init”)
-// od -t xC initcode
+  struct trapframe *trapframe; // data page for trampoline.S
+```
+
+在 allocproc() 完成后，变量 p 为这个进程的进程表项。然后使用  uvmfirst() 把一段编译好的二进制程序直接加载到特定位置：
+
+```c
+// ==================== kernel/vm.c 207 221 ====================
+// Load the user initcode into address 0 of pagetable,
+// for the very first process.
+// sz must be less than a page.
+void
+uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
+{
+  char *mem;
+
+  if(sz >= PGSIZE)
+    panic("uvmfirst: more than a page");
+  mem = kalloc(); // 在 freelist 里中找到一个空闲物理页面
+  memset(mem, 0, PGSIZE); // 清理这个物理页面
+  mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U); // 建立映射
+  memmove(mem, src, sz); // 把 src 搬入其中
+}
+```
+
+而编译好的二进制程序是这样的：
+
+```c
+// ==================== kernel/vm.c 218 229 ====================
+// a user program that calls exec("/init")
+// assembled from ../user/initcode.S
+// od -t xC ../user/initcode
 uchar initcode[] = {
-  0x17, 0x05, 0x00, 0x00, 0x13, 0x05, 0x05, 0x02,
-  0x97, 0x05, 0x00, 0x00, 0x93, 0x85, 0x05, 0x02,
-  0x9d, 0x48, 0x73, 0x00, 0x00, 0x00, 0x89, 0x48,
-  0x73, 0x00, 0x00, 0x00, 0xef, 0xf0, 0xbf, 0xff,
-  0x2f, 0x69, 0x6e, 0x69, 0x74, 0x00, 0x00, 0x01,
-  0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00
+  0x17, 0x05, 0x00, 0x00, 0x13, 0x05, 0x45, 0x02,
+  0x97, 0x05, 0x00, 0x00, 0x93, 0x85, 0x35, 0x02,
+  0x93, 0x08, 0x70, 0x00, 0x73, 0x00, 0x00, 0x00,
+  0x93, 0x08, 0x20, 0x00, 0x73, 0x00, 0x00, 0x00,
+  0xef, 0xf0, 0x9f, 0xff, 0x2f, 0x69, 0x6e, 0x69,
+  0x74, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00
 };
 ```
 
-以上是initcode.S构建的二进制的八进制数据格式，而 initcode.S 本来是这样的：
+这个程序来自 inicode.S，但我找不到这个文件：
 
 ```assembly
 # Initial process execs /init.
@@ -381,41 +404,54 @@ argv:
   .long 0
 ```
 
-上面的initcode程序通过调用exec系统调用运行一个新的程序 init 重新进入内核。
+这段代码首先使用 la 将 init 对应的地址加载到 a0 寄存器，然后再用 la 将 argv 对应的地址加载到 a1 寄存器。最后将 SYS_exec 的地址加载到 a7 寄存器。ecall 指令将**权限提升到内核模式并将程序跳转到指定的地址**。
+
+最终让第一个进程重新回到内核态，并使用 exec 系统调用运行 init，无参数。init 如下：
 
 ```c
+// ==================== user/init.c 14 54 ====================
 int
 main(void)
 {
   int pid, wpid;
 
-  if(open(“console”, O_RDWR) < 0){
-    mknod(“console”, 1, 1);
-    open(“console”, O_RDWR);
+  if(open("console", O_RDWR) < 0){
+    mknod("console", CONSOLE, 0);
+    open("console", O_RDWR);
   }
   dup(0);  // stdout
   dup(0);  // stderr
 
   for(;;){
-    printf(“init: starting sh\n”);
+    printf("init: starting sh\n");
     pid = fork();
     if(pid < 0){
-      printf(“init: fork failed\n”);
+      printf("init: fork failed\n");
       exit(1);
     }
     if(pid == 0){
-      exec(“sh”, argv);
-      printf(“init: exec sh failed\n”);
+      exec("sh", argv);
+      printf("init: exec sh failed\n");
       exit(1);
     }
-    while((wpid=wait(0)) >= 0 && wpid != pid){
-      //printf(“zombie!\n”);
+		// 父进程可以运行到这里，此时变量 pid 为子进程的 pid
+    for(;;){
+      // this call to wait() returns if the shell exits,
+      // or if a parentless process exits.
+      wpid = wait((int *) 0); // 返回的 wpid 是终止的子进程 pid。
+      if(wpid == pid){
+        // the shell exited; restart it.
+        break;
+      } else if(wpid < 0){
+        printf("init: wait returned an error\n");
+        exit(1);
+      } else {
+        // it was a parentless process; do nothing.
+      }
     }
   }
 }
 ```
-
-该程序创建文件描述符 0、1、2。启动控制台 shell。 等待 shell 存在，然后重复。
 
 
 
