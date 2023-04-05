@@ -6,7 +6,8 @@
 char*
 fmtname(char *path)
 {
-  static char buf[DIRSIZ+1];
+  char *buf = malloc(DIRSIZ+1);
+  memset(buf, 0, DIRSIZ + 1);
   char *p;
 
   // Find first character after last slash.
@@ -19,6 +20,16 @@ fmtname(char *path)
     return p;
   memmove(buf, p, strlen(p));
   memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
+  return buf;
+}
+
+char *fmtdigit(int x) {
+  char *buf = malloc(DIRSIZ+1);
+  memset(buf, 0, DIRSIZ + 1);
+  int d = itoa(buf, x);
+  buf[DIRSIZ] = 0;
+  if (d >= DIRSIZ) return buf;
+  memset(buf + d, ' ', DIRSIZ - d);
   return buf;
 }
 
@@ -44,7 +55,7 @@ ls(char *path)
   switch(st.type){
   case T_DEVICE:
   case T_FILE:
-    printf("%s %d %d %l\n", fmtname(path), st.type, st.ino, st.size);
+    printf("%s %s %s %s\n", fmtname(path), fmtdigit(st.type), fmtdigit(st.ino), fmtdigit(st.size));
     break;
 
   case T_DIR:
@@ -64,7 +75,7 @@ ls(char *path)
         printf("ls: cannot stat %s\n", buf);
         continue;
       }
-      printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+      printf("%s %s %s %s\n", fmtname(buf), fmtdigit(st.type), fmtdigit(st.ino), fmtdigit(st.size));
     }
     break;
   }
@@ -75,7 +86,7 @@ int
 main(int argc, char *argv[])
 {
   int i;
-
+  printf("%s %s %s %s\n", fmtname("name"), fmtname("st.type"), fmtname("st.ino"), fmtname("st.size"));
   if(argc < 2){
     ls(".");
     exit(0);
