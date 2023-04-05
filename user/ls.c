@@ -2,12 +2,12 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/fs.h"
+#include "kernel/fcntl.h"
 
 char*
 fmtname(char *path)
 {
-  char *buf = malloc(DIRSIZ+1);
-  memset(buf, 0, DIRSIZ + 1);
+  static char buf[DIRSIZ+1];
   char *p;
 
   // Find first character after last slash.
@@ -23,16 +23,6 @@ fmtname(char *path)
   return buf;
 }
 
-char *fmtdigit(int x) {
-  char *buf = malloc(DIRSIZ+1);
-  memset(buf, 0, DIRSIZ + 1);
-  int d = itoa(buf, x);
-  buf[DIRSIZ] = 0;
-  if (d >= DIRSIZ) return buf;
-  memset(buf + d, ' ', DIRSIZ - d);
-  return buf;
-}
-
 void
 ls(char *path)
 {
@@ -41,7 +31,7 @@ ls(char *path)
   struct dirent de;
   struct stat st;
 
-  if((fd = open(path, 0)) < 0){
+  if((fd = open(path, O_RDONLY)) < 0){
     fprintf(2, "ls: cannot open %s\n", path);
     return;
   }
@@ -55,7 +45,7 @@ ls(char *path)
   switch(st.type){
   case T_DEVICE:
   case T_FILE:
-    printf("%s %s %s %s\n", fmtname(path), fmtdigit(st.type), fmtdigit(st.ino), fmtdigit(st.size));
+    printf("%s %d %d %l\n", fmtname(path), st.type, st.ino, st.size);
     break;
 
   case T_DIR:
@@ -75,7 +65,7 @@ ls(char *path)
         printf("ls: cannot stat %s\n", buf);
         continue;
       }
-      printf("%s %s %s %s\n", fmtname(buf), fmtdigit(st.type), fmtdigit(st.ino), fmtdigit(st.size));
+      printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
     }
     break;
   }
@@ -86,7 +76,7 @@ int
 main(int argc, char *argv[])
 {
   int i;
-  printf("%s %s %s %s\n", fmtname("name"), fmtname("st.type"), fmtname("st.ino"), fmtname("st.size"));
+
   if(argc < 2){
     ls(".");
     exit(0);
