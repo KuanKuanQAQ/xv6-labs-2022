@@ -106,6 +106,21 @@ atoi(const char *s)
   return n;
 }
 
+int itoa(char *dst, uint x) {
+  int d = 0;
+  while (x) {
+    *(dst + d) = x % 10 + '0';
+    ++d;
+    x /= 10;
+  }
+  for (int i = 0; i < d / 2; ++i) {
+    char tmp = *(dst + i);
+    *(dst + i) = *(dst + d - i - 1);
+    *(dst + d - i - 1) = tmp;
+  }
+  return d;
+}
+
 void*
 memmove(void *vdst, const void *vsrc, int n)
 {
