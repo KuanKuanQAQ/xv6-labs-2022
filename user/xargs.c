@@ -2,7 +2,6 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-#define ARGNUM 32
 #define MAXLEN 512
 
 int split(char *vtgt[], char *vsrc, char c) {
@@ -35,9 +34,9 @@ int main(int argc, char *argv[]) {
     gets(buf, MAXLEN);
     if (buf[0] == 0) break;
     buf[strlen(buf) - 1] = 0;
-    char *xargs[ARGNUM], *tmp[ARGNUM];
-    memset(xargs, 0, ARGNUM);
-    memset(tmp, 0, ARGNUM);
+    char *xargs[MAXARGS], *tmp[MAXARGS];
+    memset(xargs, 0, MAXARGS);
+    memset(tmp, 0, MAXARGS);
     memcpy(xargs, argv + 1, (argc - 1) * sizeof(char *) / sizeof(char));
     /*
     a 数组每个元素都是一个 char * 指针，指向一个字符串。
