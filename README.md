@@ -332,7 +332,7 @@ userinit() 首先用 allocproc() 找到一个空闲的进程表项。所有进�
   struct trapframe *trapframe; // data page for trampoline.S
 ```
 
-在 allocproc() 完成后，变量 p 为这个进程的进程表项。然后使用  uvmfirst() 把一段编译好的二进制程序直接加载到特定位置：
+在 allocproc() 完成后，变量 p 为这个进程的进程表项。然后使用 uvmfirst() 把一段编译好的二进制程序直接加载到特定位置：
 
 ```c
 // ==================== kernel/vm.c 207 221 ====================
@@ -454,15 +454,205 @@ main(void)
 }
 ```
 
+而编译好的二进制程序是这样的：
 
+```c
+// ==================== kernel/vm.c 218 229 ====================
+// a user program that calls exec("/init")
+// assembled from ../user/initcode.S
+// od -t xC ../user/initcode
+uchar initcode[] = {
+  0x17, 0x05, 0x00, 0x00, 0x13, 0x05, 0x45, 0x02,
+  0x97, 0x05, 0x00, 0x00, 0x93, 0x85, 0x35, 0x02,
+  0x93, 0x08, 0x70, 0x00, 0x73, 0x00, 0x00, 0x00,
+  0x93, 0x08, 0x20, 0x00, 0x73, 0x00, 0x00, 0x00,
+  0xef, 0xf0, 0x9f, 0xff, 0x2f, 0x69, 0x6e, 0x69,
+  0x74, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00
+};
+```
 
+# Lab: system calls
 
+## Using gdb
 
+### 问题 2：p->trapframe->a7 的值是多少，表示什么？
 
+文档里说用 p/x *p 查看 p，这样只能看到 trapframe 这个指针的值。这个指针指向一个结构体：
 
+```c
+// ==================== user/init.c 31 80 ====================
+// per-process data for the trap handling code in trampoline.S.
+// sits in a page by itself just under the trampoline page in the
+// user page table. not specially mapped in the kernel page table.
+// uservec in trampoline.S saves user registers in the trapframe,
+// then initializes registers from the trapframe's
+// kernel_sp, kernel_hartid, kernel_satp, and jumps to kernel_trap.
+// usertrapret() and userret in trampoline.S set up
+// the trapframe's kernel_*, restore user registers from the
+// trapframe, switch to the user page table, and enter user space.
+// the trapframe includes callee-saved user registers like s0-s11 because the
+// return-to-user path via usertrapret() doesn't return through
+// the entire kernel call stack.
+struct trapframe {
+  /*   0 */ uint64 kernel_satp;   // kernel page table
+  /*   8 */ uint64 kernel_sp;     // top of process's kernel stack
+  /*  16 */ uint64 kernel_trap;   // usertrap()
+  /*  24 */ uint64 epc;           // saved user program counter
+  /*  32 */ uint64 kernel_hartid; // saved kernel tp
+  /*  40 */ uint64 ra;
+  /*  48 */ uint64 sp;
+  /*  56 */ uint64 gp;
+  /*  64 */ uint64 tp;
+  /*  72 */ uint64 t0;
+  /*  80 */ uint64 t1;
+  /*  88 */ uint64 t2;
+  /*  96 */ uint64 s0;
+  /* 104 */ uint64 s1;
+  /* 112 */ uint64 a0;
+  /* 120 */ uint64 a1;
+  /* 128 */ uint64 a2;
+  /* 136 */ uint64 a3;
+  /* 144 */ uint64 a4;
+  /* 152 */ uint64 a5;
+  /* 160 */ uint64 a6;
+  /* 168 */ uint64 a7;
+  /* 176 */ uint64 s2;
+  /* 184 */ uint64 s3;
+  /* 192 */ uint64 s4;
+  /* 200 */ uint64 s5;
+  /* 208 */ uint64 s6;
+  /* 216 */ uint64 s7;
+  /* 224 */ uint64 s8;
+  /* 232 */ uint64 s9;
+  /* 240 */ uint64 s10;
+  /* 248 */ uint64 s11;
+  /* 256 */ uint64 t3;
+  /* 264 */ uint64 t4;
+  /* 272 */ uint64 t5;
+  /* 280 */ uint64 t6;
+};
+```
 
+这个结构体里含有一个 a7 成员。我认为这个结构体里保存的是各种寄存器的值。我们可以用 p p->trapframe->a7 来直接查看 a7 成员的值（gdb 甚至可以自动补全），a7 的值显示为 7。
 
+此时的 p 刚刚经过 myproc() 的赋值：
 
+```c
+// ==================== kernel/proc.c 71 90 ====================
+// Return this CPU's cpu struct.
+// Interrupts must be disabled.
+struct cpu*
+mycpu(void)
+{
+  int id = cpuid();
+  struct cpu *c = &cpus[id];
+  return c;
+}
+
+// Return the current struct proc *, or zero if none.
+struct proc*
+myproc(void)
+{
+  push_off();
+  struct cpu *c = mycpu();
+  struct proc *p = c->proc;
+  pop_off();
+  return p;
+}
+```
+
+我认为这里并没有修改 c->proc->trapframe 的值，它的值应该是被预设好的。
+
+2.2.2 节写到：使用 uvmfirst() 把 inicode.S 编译好的二进制程序直接加载到特定位置。inicode.S 如下：
+
+```assembly
+# Initial process that execs /init.
+# This code runs in user space.
+
+#include "syscall.h"
+
+# exec(init, argv)
+.globl start
+start:
+        la a0, init
+        la a1, argv
+        li a7, SYS_exec
+        ecall
+
+# for(;;) exit();
+exit:
+        li a7, SYS_exit
+        ecall
+        jal exit
+
+# char init[] = "/init\0";
+init:
+  .string "/init\0"
+
+# char *argv[] = { init, 0 };
+.p2align 2
+argv:
+  .long init
+  .long 0
+
+```
+
+注意，它把 SYS_exec 放入了 a7，而 SYS_exec 在 syscall.h 中定义为 7：
+
+```c
+// System call numbers
+#define SYS_fork    1
+#define SYS_exit    2
+#define SYS_wait    3
+#define SYS_pipe    4
+#define SYS_read    5
+#define SYS_kill    6
+#define SYS_exec    7
+#define SYS_fstat   8
+#define SYS_chdir   9
+#define SYS_dup    10
+#define SYS_getpid 11
+#define SYS_sbrk   12
+#define SYS_sleep  13
+#define SYS_uptime 14
+#define SYS_open   15
+#define SYS_write  16
+#define SYS_mknod  17
+#define SYS_unlink 18
+#define SYS_link   19
+#define SYS_mkdir  20
+#define SYS_close  21
+```
+
+### 问题 3：CPU 在什么态（mode）
+
+文档给出的指令是 p/x $sstatus，这个指令可以打印指定寄存器 sstatus 的值。也可以用 info register 或简写为 i register 打印寄存器的值，但是不包括浮点寄存器和向量寄存器的值，i all-registers 是全部打印。
+
+### 问题4：写出内核 panic 的位置，哪个寄存器存了变量 num？
+
+xv6 内核崩溃的时候会输出 scause、sepc 和 stval 三个寄存器的值：
+
+```shell
+scause 0x000000000000000d
+sepc=0x0000000080001ff8 stval=0x0000000000000000
+```
+
+Supervisor Cause Register（scause）保存的是导致 trap 的事件的编号，这里的编号是 d 也就是 13 load page fault。
+
+Supervisor Scratch Register（sscratch）保存的是导致 trap 的指令的虚拟地址。
+
+Supervisor Trap Value Register （stval）没看懂，暂时够用了。
+
+所以内核 panic 的位置就是 sepc 保存的值，0x0000000080001ff8，执行的指令是
+
+```assembly
+ 0x80001ff8 <syscall+20> lw      a3,0(zero) # 0x0   
+```
+
+看来就是把 0 往寄存器 a3 里装，所以是寄存器 a3 保存了 num。
+
+我们也可以用 gbd 的 ni 来调试，表示执行下一条 instruction。也会发现执行到这条就 panic 了。
 
 
 
