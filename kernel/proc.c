@@ -308,6 +308,9 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  // copy trace_mask from the parent to the child process.
+  np->trace_mask = p->trace_mask;
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -680,4 +683,17 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// To collect the number of processes and save to addr
+int cnt_procnum(uint64 addr) {
+  uint64 cnt = 0;
+  for (struct proc *p = proc; p < &proc[NPROC]; ++p) {
+    if (p->state != UNUSED) ++cnt;
+  }
+  struct proc *p = myproc();
+  if(copyout(p->pagetable, addr, (char *)&cnt, sizeof(cnt)) < 0) {
+    return -1;
+  }
+  return 0;
 }

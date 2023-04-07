@@ -1,6 +1,7 @@
 #define MAXARGS 10 // shell 命令的最大参数量
 
 struct stat;
+struct sysinfo;
 
 // system calls
 int fork(void);
@@ -24,6 +25,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int trace(int);
+int sysinfo(struct sysinfo *);
 
 // ulib.c
 int stat(const char*, struct stat*);
