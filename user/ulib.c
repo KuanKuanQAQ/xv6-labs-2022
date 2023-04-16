@@ -1,7 +1,12 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "kernel/fcntl.h"
+#ifdef LAB_PGTBL
+#include "kernel/riscv.h"
+#include "kernel/memlayout.h"
+#endif
 #include "user/user.h"
+
 
 //
 // wrapper so that it's OK if main() does not call exit().
@@ -106,21 +111,6 @@ atoi(const char *s)
   return n;
 }
 
-int itoa(char *dst, uint x) {
-  int d = 0;
-  while (x) {
-    *(dst + d) = x % 10 + '0';
-    ++d;
-    x /= 10;
-  }
-  for (int i = 0; i < d / 2; ++i) {
-    char tmp = *(dst + i);
-    *(dst + i) = *(dst + d - i - 1);
-    *(dst + d - i - 1) = tmp;
-  }
-  return d;
-}
-
 void*
 memmove(void *vdst, const void *vsrc, int n)
 {
@@ -160,3 +150,12 @@ memcpy(void *dst, const void *src, uint n)
 {
   return memmove(dst, src, n);
 }
+
+#ifdef LAB_PGTBL
+int
+ugetpid(void)
+{
+  struct usyscall *u = (struct usyscall *)USYSCALL;
+  return u->pid;
+}
+#endif
