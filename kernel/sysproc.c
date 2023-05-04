@@ -1,7 +1,7 @@
 #include "types.h"
 #include "riscv.h"
-#include "defs.h"
 #include "param.h"
+#include "defs.h"
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
@@ -54,9 +54,8 @@ sys_sleep(void)
   int n;
   uint ticks0;
 
+
   argint(0, &n);
-  if(n < 0)
-    n = 0;
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
@@ -69,6 +68,21 @@ sys_sleep(void)
   release(&tickslock);
   return 0;
 }
+
+
+#ifdef LAB_PGTBL
+int sys_pgaccess(void) {
+  // pgaccess(buf, 32, &abits)
+  uint64 buf, abits;
+  int n_page;
+  argaddr(0, &buf);
+  argint(1, &n_page);
+  argaddr(2, &abits);
+  pgaccess(buf, n_page, abits);
+  // lab pgtbl: your code here.
+  return 0;
+}
+#endif
 
 uint64
 sys_kill(void)

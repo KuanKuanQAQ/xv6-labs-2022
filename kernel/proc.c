@@ -131,6 +131,12 @@ found:
     release(&p->lock);
     return 0;
   }
+  // Allocate a usyscall page.
+  if((p->usyscall = (struct usyscall *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -145,7 +151,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  p->usyscall->pid = p->pid;
   return p;
 }
 
@@ -158,6 +164,9 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  if(p->usyscall)
+    kfree((void*)p->usyscall);
+  p->usyscall = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -200,6 +209,15 @@ proc_pagetable(struct proc *p)
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
+  }  
+  
+  // map the USYSCALL page just below the trapframe page
+  if(mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)(p->usyscall), PTE_R | PTE_U) < 0){
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(pagetable, TRAPFRAME, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
   }
 
   return pagetable;
@@ -212,6 +230,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, USYSCALL, 1, 0);
   uvmfree(pagetable, sz);
 }
 
@@ -680,4 +699,22 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+void pgaccess(uint64 buf, int n_page, uint64 abits) {
+  struct proc *p = myproc();
+  // buf = (buf >> PGSHIFT) << PGSHIFT;
+  int src = 0;
+  for (int i = 0; i < n_page; ++i) {
+    pte_t *pte = walk(p->pagetable, buf + i * PGSIZE, 0);
+    // printf("i : %d ", i);
+    // printf("pte_a : %d ", (*pte) & PTE_A);
+    if (pte != 0 && ((*pte) & PTE_A)) {
+      src |= 1 << i;
+      *pte ^= PTE_A;
+    }
+    // printf("pte_a : %d\n", (*pte) & PTE_A);
+  }
+  // printf("src: %d\n", src);
+  copyout(p->pagetable, abits, (char *)&src, sizeof(int));
 }
