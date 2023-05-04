@@ -35,6 +35,7 @@ ugetpid_test()
 
   for (i = 0; i < 64; i++) {
     int ret = fork();
+    printf("%d\n", i);
     if (ret != 0) {
       wait(&ret);
       if (ret != 0)
