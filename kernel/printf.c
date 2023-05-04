@@ -133,3 +133,15 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+void backtrace() {
+  uint64 fp, ra, fp_old;
+  fp = r_fp();
+  while (1) {
+    ra = *(fp - 8);
+    printf("%p\n",ra);
+    fp_old = *(fp - 16);
+    fp = fp_old;
+    if (fp >> PGSHIFT << PGSHIFT == fp) break;
+  }
+}
