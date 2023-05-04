@@ -699,4 +699,23 @@ Supervisor Trap Value Register （stval）没看懂，暂时够用了。
 我们也可以用 gbd 的 ni 来调试，表示执行下一条 instruction。也会发现执行到这条就 panic 了。
 
 
+# Lab: page tables
 
+## Speed up system calls
+第一个用户态进程由 userinit() 创建，采用了 allocproc() 函数生成进程控制块 struct proc。之后所有进程都使用 fork() 创建，同样采用 allocproc()。
+
+allocproc() 首先遍历 proc 数组，这个数组是一个进程空间块数组，找到一个状态为 UNUSED 的进程控制块。它目前没有控制任何进程，就用它来控制即将生成的进程。
+
+找到空闲进程控制块后生成 pid，修改进程控制块状态为 USED。然后分配 trapframe 页。p->trapframe 保存在这个页中。而 p->trapframe 是一个保存了各个寄存器的值的数据结构。usyscall 也是通过相似的方法得到一个页面。注意这两个页面都是通过 kalloc 分配，这是一个定义在内核中的函数，不能由用户态进程访问，所分配的页面也属于内核虚存空间，因此这两个页面也不对用户态进程开放。
+随后建立进程的页表。proc_pagetable() 负责完成这个任务。先用 uvmcreate 申请一个空页，这个页就是 2 级页表了。然后往这个页表上挂 trampoline trapframe 和 usyscall 三个页。注意它们的权限，trampoline 和 trapframe 页都没有 PTE_U 这个标志项，用户没法访问他们，那些 PTE_R PTE_W 和 PTE_X 都是针对具有内核级别权限的指令而言的。
+而 usyscall 页面则有所不同，设置了 PTE_U，使得这个页面允许用户进行操作，但是也只允许进行 PTE_R 也就是读操作。写操作是在 allocproc() 中最后完成的，内核代码堪当其任。
+
+进程终止时使用 freeproc 释放进程控制块。首先要把 trapframe usyscall 占用的页面释放掉，即 kfree，然后取消它们在页表中建立的映射即 proc_freepagetable->uvmunmap，最后把页表也释放了。
+
+## Detect which pages have been accessed
+这个题不难，我觉得没有 Speed up system calls 难。
+
+关键点：
+* PTE_A 这个标志位可以由硬件自动设置，也可以受到内核态代码控制。当我们通过 buf[PGSIZE * 1] += 1; 之类的方法访问一个页面时，它的 PTE_A 就被自动置 1 了。我们也可以找到页表项，然后用内核态代码来修改 PTE_A 这个标志位。
+* PTE_A 这个标志位是第 7 位，这是硬件规定的。一个页面被访问了，就把第 7 位置 1。你定义它是第 6 位硬件也不知道，也不能按你的实现。
+* pgaccess 这个函数查看页面的使用情况。但是只查看页表项 PTE 的话其实并不会影响页面的访问情况。但是这个函数正确的功能应该是查看后就把 PTE_A 置 0，因为这样才能确定下次调用 pgaccess 和这次调用 pgaccess 之间是否访问了这个页面。
