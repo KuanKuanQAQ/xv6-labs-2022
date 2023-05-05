@@ -37,3 +37,5 @@ entry("sbrk");
 entry("sleep");
 entry("uptime");
 entry("pgaccess");
+entry("sigalarm");
+entry("sigreturn");

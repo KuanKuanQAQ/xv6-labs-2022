@@ -152,6 +152,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
   p->usyscall->pid = p->pid;
+
+  // Set up alarm param for lab traps
+  p->alarm_interval = 0; // it means no alarm fn
   return p;
 }
 

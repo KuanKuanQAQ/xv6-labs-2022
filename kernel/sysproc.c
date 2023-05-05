@@ -51,10 +51,9 @@ sys_sbrk(void)
 uint64
 sys_sleep(void)
 {
+  backtrace();
   int n;
   uint ticks0;
-
-
   argint(0, &n);
   acquire(&tickslock);
   ticks0 = ticks;
@@ -66,13 +65,12 @@ sys_sleep(void)
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
-  backtrace();
+  
   return 0;
 }
 
 
 int sys_pgaccess(void) {
-  // pgaccess(buf, 32, &abits)
   uint64 buf, abits;
   int n_page;
   argaddr(0, &buf);
@@ -103,4 +101,23 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64 sys_sigalarm(void) {
+  int ticks;
+  uint64 handler;
+  struct proc* p = myproc();
+  argint(0, &ticks);
+  argaddr(1, &handler);
+  p->alarm_interval = ticks;
+  p->alarm_handler = handler;
+  p->alarm_left_ticks = ticks;
+  return 0;
+}
+
+uint64 sys_sigreturn(void) {
+  struct proc* p = myproc();
+  memmove(p->trapframe, p->saved_trapframe, PGSIZE);
+  p->alarm_left_ticks = p->alarm_interval;
+  return 0;
 }
