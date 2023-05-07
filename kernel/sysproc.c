@@ -119,5 +119,5 @@ uint64 sys_sigreturn(void) {
   struct proc* p = myproc();
   memmove(p->trapframe, p->saved_trapframe, PGSIZE);
   p->alarm_left_ticks = p->alarm_interval;
-  return 0;
+  return p->trapframe->a0;
 }

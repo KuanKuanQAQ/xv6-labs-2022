@@ -155,6 +155,7 @@ found:
 
   // Set up alarm param for lab traps
   p->alarm_interval = 0; // it means no alarm fn
+  p->alarm_left_ticks = 0;
   return p;
 }
 
